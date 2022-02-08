@@ -1,0 +1,77 @@
+---
+swagger: "2.0"
+info:
+  title:
+    Fn::Sub: Trailers-${Environment}
+  description: Trailers GET service.
+  contact:
+    name: Alaa
+  version: 0.0.1
+schemes:
+  - https
+
+definitions:
+  trailers:
+    type: array
+    description: List of Links.
+    items:
+      $ref: '#/definitions/trailer'
+  trailer:
+    type: string
+    description: E.g. `https://www.youtube.com/watch?v=6vY9UPiI4eQ`
+
+x-definitions:
+  AWS4SignedRESTLambda: &AWS4SignedRESTLambda
+    # security:
+    #   - sigv4: []
+    x-amazon-apigateway-integration:
+      uri:
+        Fn::Sub: arn:aws:apigateway:eu-west-1:lambda:path/2015-03-31/functions/${TrailersLambda.Arn}/invocations
+      credentials:
+        Fn::GetAtt: TrailersApiRole.Arn
+      passthroughBehavior: when_no_match
+      httpMethod: POST
+      type: aws_proxy
+  CORSHeaders: &CORSHeaders
+    Access-Control-Allow-Headers:
+      type: string
+    Access-Control-Allow-Methods:
+      type: string
+    Access-Control-Allow-Origin:
+      type: string
+
+
+paths:
+
+  /trailers:
+    get:
+      <<: *AWS4SignedRESTLambda
+      summary: Lists a single serial entry by ID.
+      parameters:
+        - name: viaplayLink
+          in: query
+          type: string
+          required: true
+      responses:
+        200:
+          description: Success
+          headers:
+            <<: *CORSHeaders
+
+securityDefinitions:
+  sigv4:
+    type: apiKey
+    name: Authorization
+    in: header
+    x-amazon-apigateway-authtype: awsSigv4
+x-amazon-apigateway-request-validator: validate-params
+x-amazon-apigateway-request-validators:
+  validate-params:
+    validateRequestParameters: true
+x-amazon-apigateway-gateway-responses:
+  DEFAULT_4XX:  &gatewayCorsResponse
+    responseParameters:
+      gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,x-dw-user-id,x-dw-source,x-dw-session-id'"
+      gatewayresponse.header.Access-Control-Allow-Methods: "'OPTIONS,GET'"
+      gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+  DEFAULT_5XX: *gatewayCorsResponse

@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: Viaplay integration, serverless stack
+
+Parameters:
+  Service:
+    Type: String
+  Environment:
+    Type: String
+    Default: dev
+  LogRetentionInDays:
+    Type: Number
+    Default: 60
+  # TmdbApiKey:
+  #   Type: String
+
+Mappings:
+  static:
+    tmdb:
+      url: "https://api.themoviedb.org"
+
+Outputs:
+  TrailersApiName:
+    Description: Trailers API Gateway Name
+    Value: !Ref TrailersApi
+    Export:
+      Name: !Sub TrailersApiName
+
+Globals:
+  Function:
+    Runtime: nodejs14.x
+    Timeout: 300
+    MemorySize: 128
+    Handler: index.handler
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        SERVICE_NAME: !Ref Service
+
+Resources:
+  # REST API
+  TrailersApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Environment
+      Cors:
+        AllowMethods: "'OPTIONS,GET'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,x-dw-user-id,x-dw-source,x-dw-session-id'"
+        AllowOrigin: "'*'"
+      DefinitionBody:
+        Fn::Transform:
+          Name: AWS::Include
+          Parameters:
+            Location: swagger.yaml
+
+# Role
+  TrailersApiRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: TrailersApiRole
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: apigateway.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        Path: "/"
+        Policies:
+          - PolicyName: LambdaInvokePolicy
+            PolicyDocument:
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - lambda:InvokeFunction
+                  Resource:
+                    - !GetAtt TrailersLambda.Arn
+
+  # lambda
+  TrailersLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${Service}-trailers
+      CodeUri: ../src/getTrailers
+      Description: Search for movie trailers
+      Environment:
+        Variables:
+          TMDB_URL: !FindInMap [static, tmdb, url]
+          # TmdbApiKey: !Ref TmdbApiKey
+
+  # CLOUDWATCH LOG
+  TrailersLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${TrailersLambda}
+      RetentionInDays: !Ref LogRetentionInDays
+  
+  # Permission
+  TrailersLambdaInvokePermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName:
+        Fn::GetAtt:
+          - "TrailersLambda"
+          - "Arn"
+      Action: "lambda:InvokeFunction"
+      Principal: "apigateway.amazonaws.com"
+  
+  # POLICIES
+  ITSRoleAPolicies:
+    Type: "AWS::IAM::Policy"
+    Properties:
+      PolicyName: "TrailersPolicyA"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "execute-api:Invoke"
+            Resource:
+              - !GetAtt TrailersLambda.Arn
+      Roles:
+        - TrailersApiRole
+    DependsOn: TrailersApiRole
+              

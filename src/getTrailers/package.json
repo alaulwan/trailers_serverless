@@ -1,0 +1,19 @@
+{
+  "name": "trailers_express",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Alaa",
+  "license": "",
+  "dependencies": {
+    "axios": "^0.24.0",
+    "movie-trailer": "^2.1.0"
+  },
+  "devDependencies": {
+    "aws-sdk": "^2.828.0",
+    "webpack": "^5.68.0"
+  }
+}
